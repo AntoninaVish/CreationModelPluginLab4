@@ -2,9 +2,9 @@
 <RevitAddIns>
 	<AddIn Type="Command">
 		<Assembly>"C:\Program Files\RevitAPITrainig\CreationModelPluginLab4.dll"</Assembly>
-		<AddInId>79B5051F-0F5C-43B9-AD4C-8187613D52CD</AddInId>
+		<AddInId>F7E5B163-3F15-4CCF-9E50-E4C813557FD6</AddInId>
 		<FullClassName>CreationModelPluginLab4.Main</FullClassName>
 		<VendorId>ADSK</VendorId>
-		<Text>Задание4</Text>
+		<Text>Задание5</Text>
 	</AddIn>
 </RevitAddIns>

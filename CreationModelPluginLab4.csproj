@@ -60,4 +60,8 @@
     <None Include="CreationModelPluginLab4.addin" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PostBuildEvent>xcopy "$(TargetDir)*.*" "C:\Program Files\RevitAPITrainig\" /y /i
+xcopy "$(ProjectDir)$(ProjectName).addin" "%25appdata%25\Autodesk\Revit\Addins\2022\" /y /i</PostBuildEvent>
+  </PropertyGroup>
 </Project>

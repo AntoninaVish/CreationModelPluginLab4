@@ -24,12 +24,15 @@ namespace CreationModelPluginLab4
             Level level1, level2;
             TakeLevels(doc, out level1, out level2);
             CreateWalls(doc, level1, level2);
+
             return Result.Succeeded;
+
+
         }
         private static void CreateWalls(Document doc, Level level1, Level level2)
         {
             double width = UnitUtils.ConvertToInternalUnits(10000, UnitTypeId.Millimeters);//задаем размеры будущего дома (ширина)
-            double depth = UnitUtils.ConvertToInternalUnits(5000, UnitTypeId.Millimeters);// парраметер гдубина
+            double depth = UnitUtils.ConvertToInternalUnits(5000, UnitTypeId.Millimeters);// парраметер глубина
             double dx = width / 2; //получаем набор точек(делим ширину и глубину пополам записываем в переменные dx и dy
             double dy = depth / 2;
 
@@ -56,10 +59,67 @@ namespace CreationModelPluginLab4
                 wall.get_Parameter(BuiltInParameter.WALL_HEIGHT_TYPE).Set(level2.Id);//привязка верха стены к уровню 2
 
             }
+            CreateDoor(doc, level1, walls[0]);
+            //добавляем двери, передаем ссылку на документ, передаем значение уровня, передаем стену в которую добавляем дверь
+            //берем первую из расчета массива
+            CreateWindow(doc, level1, walls[1]);
+            CreateWindow(doc, level1, walls[2]);
+            CreateWindow(doc, level1, walls[3]);
+
 
             transaction.Commit();
         }
 
+        private static void CreateWindow(Document doc, Level level1, Wall wall)
+        {
+            FamilySymbol winType = new FilteredElementCollector(doc)//находим нужный типаразмер, заносим в переменную FamilySymbol
+                 .OfClass(typeof(FamilySymbol))
+                 .OfCategory(BuiltInCategory.OST_Windows)
+                 .OfType<FamilySymbol>()//фильтрация по типу FamilySymbol
+                 .Where(x => x.Name.Equals("0915 x 1830 мм"))
+                 .Where(x => x.FamilyName.Equals("Фиксированные"))//семейство к которому добираемся
+                 .FirstOrDefault();//если мы хотим получить единичный экземпляр(результатом будет один экземпляр FamilySymbol)
+
+            LocationCurve hostCurve = wall.Location as LocationCurve;
+            XYZ point1 = hostCurve.Curve.GetEndPoint(0);
+            XYZ point2 = hostCurve.Curve.GetEndPoint(1);
+            XYZ point = (point1 + point2) / 2; //получаем на основе этих точек среднюю точку
+
+            if (!winType.IsActive)
+                winType.Activate();
+
+            var window = doc.Create.NewFamilyInstance(point, winType, wall, level1, StructuralType.NonStructural);
+            Parameter silHeingt = window.get_Parameter(BuiltInParameter.INSTANCE_SILL_HEIGHT_PARAM);
+            double sh = UnitUtils.ConvertToInternalUnits(900, UnitTypeId.Millimeters);
+            silHeingt.Set(sh);
+
+        }
+
+        private static void CreateDoor(Document doc, Level level1, Wall wall)//создаем метод
+        {
+            FamilySymbol doorType = new FilteredElementCollector(doc)//находим нужный типаразмер, заносим в переменную FamilySymbol
+                 .OfClass(typeof(FamilySymbol))
+                 .OfCategory(BuiltInCategory.OST_Doors)
+                 .OfType<FamilySymbol>()//фильтрация по типу FamilySymbol
+                 .Where(x => x.Name.Equals("0915 x 2134 мм"))
+                 .Where(x => x.FamilyName.Equals("Одиночные-Щитовые"))//семейство к которому добираемся
+                 .FirstOrDefault();//если мы хотим получить единичный экземпляр(результатом будет один экземпляр FamilySymbol)
+
+            LocationCurve hostCurve = wall.Location as LocationCurve;
+            //определяем точку в которую будем добавлять дверь(чтобы получить границы отрезка нужно преобразовать 
+            //LOCATION к правильному типу)результатом будет объект типа LocationCurve
+            XYZ point1 = hostCurve.Curve.GetEndPoint(0);
+            //добираемся к точкам левой и правой границе кривой при помощи метода GetEndPoint
+            XYZ point2 = hostCurve.Curve.GetEndPoint(1);
+            XYZ point = (point1 + point2) / 2; //получаем на основе этих точек среднюю точку
+
+            if (!doorType.IsActive)
+                doorType.Activate();
+
+            doc.Create.NewFamilyInstance(point, doorType, wall, level1, StructuralType.NonStructural);
+            //на объекте doc обращаемся к свойству Create и передаем аргументы
+
+        }
         private static void TakeLevels(Document doc, out Level level1, out Level level2)
         {
             List<Level> listLevel1 = new FilteredElementCollector(doc)
@@ -185,3 +245,4 @@ namespace CreationModelPluginLab4
 //Чтобы отделить двери от окон добавляем фильт по категории OfCategory, при поиске отделяет одни семейства от других.
 // Чтобы отделять типы от экземпляров (напр. Wall от WallType) можно делать фильтр на основе типа OfClass(typeof(FamilyInstance))
 //В Revit измерение в фут.
+//Свойство LOCATION есть у многих элементов являться может либо точкой либо кривой.
