@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Autodesk.Revit.ApplicationServices; //добавляем вручную
 
 
 namespace CreationModelPluginLab4
@@ -26,7 +27,6 @@ namespace CreationModelPluginLab4
             CreateWalls(doc, level1, level2);
 
             return Result.Succeeded;
-
 
         }
         private static void CreateWalls(Document doc, Level level1, Level level2)
@@ -66,11 +66,92 @@ namespace CreationModelPluginLab4
             CreateWindow(doc, level1, walls[2]);
             CreateWindow(doc, level1, walls[3]);
 
+            AddRoof(doc, level2, walls, width, depth);//Добавляем крышу, передаем документ, этаж и все стены, ширину и грубину
 
             transaction.Commit();
         }
 
-        private static void CreateWindow(Document doc, Level level1, Wall wall)
+        private static void AddRoof(Document doc, Level level2, List<Wall> walls, double width, double depth)// метод для добавления крышу
+        {
+            RoofType roofType = new FilteredElementCollector(doc)
+                 .OfClass(typeof(RoofType))
+                 .OfType<RoofType>()
+                 .Where(x => x.Name.Equals("Типовой - 400мм"))
+                 .Where(x => x.FamilyName.Equals("Базовая крыша"))
+                 .FirstOrDefault();
+
+
+            ////1 СПОСОБ ПО ВИДЕОУРОКУ
+            //double wallWidth = walls[0].Width;
+            //double dt = wallWidth / 2; //получаем смещение крыши 
+            //List<XYZ> points = new List<XYZ>(); //массив точек
+
+            //points.Add(new XYZ(-dt, -dt, 0)); // получаем за счет ворлирования смещения в положительную или отрицательную сторону
+            //points.Add(new XYZ(dt, -dt, 0));
+            //points.Add(new XYZ(dt, dt, 0));
+            //points.Add(new XYZ(-dt, dt, 0));
+            //points.Add(new XYZ(-dt, -dt, 0));
+
+            //Application application = doc.Application;
+            //CurveArray footprint = application.Create.NewCurveArray();//footprint это отпечаток границы дома по которой автоматически
+            ////будет построена крыша 
+
+            //for (int i = 0; i < 4; i++) //перебераем все стены
+            //{
+            //    LocationCurve curve = walls[i].Location as LocationCurve; //получаем кривую
+            //    XYZ p1 = curve.Curve.GetEndPoint(0); //добавляем линию со смещением
+            //    XYZ p2 = curve.Curve.GetEndPoint(1); //добавляем линию со смещением
+            //    Line line = Line.CreateBound(p1 + points[i], p2 + points[i + 1]);
+            //    //получаем линию созданную при помощи метода CreateBound (аргументами будут р1+points (соответствующее смещение) и р2+points(смещение)
+
+            //    footprint.Append(line);//добавляем созданную линию 
+            //}
+
+            //ModelCurveArray footPrintToModelCurveMapping = new ModelCurveArray(); //Создаем пустой массив (для крыши)
+            //FootPrintRoof footprintRoof = doc.Create.NewFootPrintRoof(footprint, level2, roofType, out footPrintToModelCurveMapping);
+
+            ////ModelCurveArrArrayIterator iterator = footPrintToModelCurveMapping.ForwardIterator(); //наклон крыши
+            ////iterator.Reset();
+            ////while (iterator.MoveNext())
+            ////{
+            ////    ModelCurve modelCurve = iterator.Current as ModelCurve;
+            ////    footprintRoof.set_DefinesSlope(modelCurve, true);
+            ////    footprintRoof.set_SlopeAngle(modelCurve, 0.5);
+            ////}
+            //foreach (ModelCurve m in footPrintToModelCurveMapping)
+            //{
+            //    footprintRoof.set_DefinesSlope(m, true);
+            //    footprintRoof.set_SlopeAngle(m, 0.5);
+            //}
+
+
+            //2 СПОСОБ ПО ДОМАШНЕМУ ЗАДАНИЮ
+            View view = new FilteredElementCollector(doc)
+               .OfClass(typeof(View))
+               .OfType<View>()
+               .Where(x => x.Name.Equals("Уровень 1"))
+               .FirstOrDefault();
+
+            double wallWight = walls[0].Width; // ширина стены
+            double dt = wallWight / 2;
+
+            double extrusionStart = -width / 2 - dt; // смещение
+            double extrusionEnd = width / 2 + dt;
+            double curveStart = -depth / 2 - dt;
+            double curveEnd = +depth / 2 + dt;
+
+            CurveArray curveArray = new CurveArray();  //отпечаток границы дома
+            curveArray.Append(Line.CreateBound(new XYZ(0, curveStart, level2.Elevation), new XYZ(0, 0, level2.Elevation + 10)));
+            curveArray.Append(Line.CreateBound(new XYZ(0, 0, level2.Elevation + 10), new XYZ(0, curveEnd, level2.Elevation)));
+
+            ReferencePlane plane = doc.Create.NewReferencePlane(new XYZ(0, 0, 0), new XYZ(0, 0, 20), new XYZ(0, 20, 0), view);
+            ExtrusionRoof extrusionRoof = doc.Create.NewExtrusionRoof(curveArray, plane, level2, roofType, extrusionStart, extrusionEnd);
+            extrusionRoof.EaveCuts = EaveCutterType.TwoCutSquare;
+
+
+        }
+
+        private static void CreateWindow(Document doc, Level level1, Wall wall)//метод создания окон
         {
             FamilySymbol winType = new FilteredElementCollector(doc)//находим нужный типаразмер, заносим в переменную FamilySymbol
                  .OfClass(typeof(FamilySymbol))
@@ -142,98 +223,98 @@ namespace CreationModelPluginLab4
 }
 
 
-           
-
-
-
-
-        //ЭТА ЧАСТЬ ОБЩАЯ ДЛЯ ВСЕХ ЭТАЖЕЙ(УРОВНЕЙ)
-        //List<Level> listLevel = new FilteredElementCollector(doc) // фильтр для поиска уровней (именно этажей а не всех элементов)
-        //     .OfClass(typeof(Level)) //уровни определяются классом Level
-        //     .OfType<Level>()
-        //     .ToList();
-        //    Level level1 = listLevel // фильтр для поиска уровней конкретного уровня
-        //        .Where(x => x.Name.Equals("Уровнь 1"))//метод расширения LINQ
-        //        .FirstOrDefault(); //получаем этот уровень 
-        //    Level level2 = listLevel
-        //        .Where(x => x.Name.Equals("Уровнь 2"))//метод расширения LINQ
-        //        .FirstOrDefault(); //получаем этот уровень 
-
-
-            ////ФОРМИРОВАНИЕ СПИСКА С КООРДИНАТАМИ ТОЧЕК ЧЕРЕЗ КОТОРЫЕ ДОЛЖНЫ ПРОХОДИТЬ СТЕНЫ
-            //double width = UnitUtils.ConvertToInternalUnits(10000, UnitTypeId.Millimeters);//задаем размеры будущего дома (ширина)
-            //double depth = UnitUtils.ConvertToInternalUnits(5000, UnitTypeId.Millimeters);// парраметер гдубина
-            //double dx = width / 2; //получаем набор точек(делим ширину и глубину пополам записываем в переменные dx и dy
-            //double dy = depth / 2;
-            
-            //List<XYZ> points = new List<XYZ>();//коллекцию с точками
-            //points.Add(new XYZ(-dx, -dy, 0)); // получаем за счет ворлирования смещения в положительную или отрицательную сторону
-            //points.Add(new XYZ(dx, -dy, 0)); 
-            //points.Add(new XYZ(dx, dy, 0)); 
-            //points.Add(new XYZ(-dx, dy, 0));
-            //points.Add(new XYZ(-dx, -dy, 0));
-
-            //List<Wall> walls = new List<Wall>();//Массив в котором добавляем созданные стены (пустой массив)
-
-            //using (Transaction transaction = new Transaction(doc, "Построение стен"))  //транзакция внутри которой цикл который будет создавать стены
-            //{
-            //    transaction.Start();
-            //    for (int i = 0; i < 4; i++)
-            //    {
-            //        Line line = Line.CreateBound(points[i], points[i + 1]);//для каждой стены предворительно создаем отрезок при помощи статического метода CreateBound 
-            //                                                               // в качестве аргумента передаем две точки из коллекции points  с индексо i  и с интексом i+1
-
-            //        Wall wall = Wall.Create(doc, line, level1.Id, false);
-            //        //стоим стену для создания экземпляра системного симейства используется статический метод Create
-            //        walls.Add(wall); //когда создали стену добавляем ее в массив стен
-            //        wall.get_Parameter(BuiltInParameter.WALL_HEIGHT_TYPE).Set(level2.Id);//привязка верха стены к уровню 2
-
-            //    }
-
-            //    transaction.Commit();
-            //}
-
-            ////ЭТА ЧАСТЬ ДЛЯ ОДНОГО ЭТАЖА(УРОВНЯ)
-            //Level level1 = new FilteredElementCollector(doc) // фильтр для поиска уровней 
-            //    .OfClass(typeof(Level)) //уровни определяются классом Level
-            //    .Where(x => x.Name.Equals("Уровнь 1"))//метод расширения LINQ
-            //    .OfType<Level>() //преобразование (фильтрация), выступает переменная типа Level
-            //    .FirstOrDefault(); //получаем этот уровень 
-
-
-
-            ////ЭТО СИСТЕМНЫЕ СИМЕЙСТВА
-            //var res1 = new FilteredElementCollector(doc) //находим все стены в проекте через фильтр
-            //    .OfClass(typeof(WallType)) //в качестве аргумента указываем нужный тип
-            //    //.Cast<Wall>()
-            //    .OfType<WallType>() //выполняет фильтрацию на основе заданного типа(LINQ фильтрацию на основе WallType)
-            //    .ToList(); //список параметризированный базовым классом Element
-            //               // на выходе получим список стен
-
-            ////ЭТО ЗАГРУЖАЕМЫЕ СИМЕЙСТВА фильтрация по типу FamilyInstance
-            //var res2 = new FilteredElementCollector(doc) //находим все стены в проекте через фильтр
-            //   .OfClass(typeof(FamilyInstance)) //в качестве аргумента указываем нужный тип (быстрые Revit фильтры пишем всегда вначале!!!)
-            //   .OfCategory(BuiltInCategory.OST_Doors) //фильтр по категориям (быстрые Revit фильтры пишем всегда вначале!!!)
-            //    //.Cast<Wall>() // медленный Revit фильтр
-
-            //   .OfType<FamilyInstance>() //выполняет фильтрацию на основе заданного типа
-            //   .Where(x=>x.Name.Equals("0915 x 2134 мм")) //выполняет фильтр по названию
-            //   .ToList(); //список параметризированный базовым классом Element
-            //              // на выходе получим список стен
-
-            ////БЫСТРЫЕ ФИЛЬТРЫ
-            //var res3 = new FilteredElementCollector(doc) //находим все стены в проекте через фильтр
-            //   .WhereElementIsNotElementType()
-            //   .ToList(); //список параметризированный базовым классом Element
-            //              // на выходе получим список стен
 
 
 
 
 
-            //return Result.Succeeded;
-        
-    //}
+//ЭТА ЧАСТЬ ОБЩАЯ ДЛЯ ВСЕХ ЭТАЖЕЙ(УРОВНЕЙ)
+//List<Level> listLevel = new FilteredElementCollector(doc) // фильтр для поиска уровней (именно этажей а не всех элементов)
+//     .OfClass(typeof(Level)) //уровни определяются классом Level
+//     .OfType<Level>()
+//     .ToList();
+//    Level level1 = listLevel // фильтр для поиска уровней конкретного уровня
+//        .Where(x => x.Name.Equals("Уровнь 1"))//метод расширения LINQ
+//        .FirstOrDefault(); //получаем этот уровень 
+//    Level level2 = listLevel
+//        .Where(x => x.Name.Equals("Уровнь 2"))//метод расширения LINQ
+//        .FirstOrDefault(); //получаем этот уровень 
+
+
+////ФОРМИРОВАНИЕ СПИСКА С КООРДИНАТАМИ ТОЧЕК ЧЕРЕЗ КОТОРЫЕ ДОЛЖНЫ ПРОХОДИТЬ СТЕНЫ
+//double width = UnitUtils.ConvertToInternalUnits(10000, UnitTypeId.Millimeters);//задаем размеры будущего дома (ширина)
+//double depth = UnitUtils.ConvertToInternalUnits(5000, UnitTypeId.Millimeters);// парраметер гдубина
+//double dx = width / 2; //получаем набор точек(делим ширину и глубину пополам записываем в переменные dx и dy
+//double dy = depth / 2;
+
+//List<XYZ> points = new List<XYZ>();//коллекцию с точками
+//points.Add(new XYZ(-dx, -dy, 0)); // получаем за счет ворлирования смещения в положительную или отрицательную сторону
+//points.Add(new XYZ(dx, -dy, 0)); 
+//points.Add(new XYZ(dx, dy, 0)); 
+//points.Add(new XYZ(-dx, dy, 0));
+//points.Add(new XYZ(-dx, -dy, 0));
+
+//List<Wall> walls = new List<Wall>();//Массив в котором добавляем созданные стены (пустой массив)
+
+//using (Transaction transaction = new Transaction(doc, "Построение стен"))  //транзакция внутри которой цикл который будет создавать стены
+//{
+//    transaction.Start();
+//    for (int i = 0; i < 4; i++)
+//    {
+//        Line line = Line.CreateBound(points[i], points[i + 1]);//для каждой стены предворительно создаем отрезок при помощи статического метода CreateBound 
+//                                                               // в качестве аргумента передаем две точки из коллекции points  с индексо i  и с интексом i+1
+
+//        Wall wall = Wall.Create(doc, line, level1.Id, false);
+//        //стоим стену для создания экземпляра системного симейства используется статический метод Create
+//        walls.Add(wall); //когда создали стену добавляем ее в массив стен
+//        wall.get_Parameter(BuiltInParameter.WALL_HEIGHT_TYPE).Set(level2.Id);//привязка верха стены к уровню 2
+
+//    }
+
+//    transaction.Commit();
+//}
+
+////ЭТА ЧАСТЬ ДЛЯ ОДНОГО ЭТАЖА(УРОВНЯ)
+//Level level1 = new FilteredElementCollector(doc) // фильтр для поиска уровней 
+//    .OfClass(typeof(Level)) //уровни определяются классом Level
+//    .Where(x => x.Name.Equals("Уровнь 1"))//метод расширения LINQ
+//    .OfType<Level>() //преобразование (фильтрация), выступает переменная типа Level
+//    .FirstOrDefault(); //получаем этот уровень 
+
+
+
+////ЭТО СИСТЕМНЫЕ СИМЕЙСТВА
+//var res1 = new FilteredElementCollector(doc) //находим все стены в проекте через фильтр
+//    .OfClass(typeof(WallType)) //в качестве аргумента указываем нужный тип
+//    //.Cast<Wall>()
+//    .OfType<WallType>() //выполняет фильтрацию на основе заданного типа(LINQ фильтрацию на основе WallType)
+//    .ToList(); //список параметризированный базовым классом Element
+//               // на выходе получим список стен
+
+////ЭТО ЗАГРУЖАЕМЫЕ СИМЕЙСТВА фильтрация по типу FamilyInstance
+//var res2 = new FilteredElementCollector(doc) //находим все стены в проекте через фильтр
+//   .OfClass(typeof(FamilyInstance)) //в качестве аргумента указываем нужный тип (быстрые Revit фильтры пишем всегда вначале!!!)
+//   .OfCategory(BuiltInCategory.OST_Doors) //фильтр по категориям (быстрые Revit фильтры пишем всегда вначале!!!)
+//    //.Cast<Wall>() // медленный Revit фильтр
+
+//   .OfType<FamilyInstance>() //выполняет фильтрацию на основе заданного типа
+//   .Where(x=>x.Name.Equals("0915 x 2134 мм")) //выполняет фильтр по названию
+//   .ToList(); //список параметризированный базовым классом Element
+//              // на выходе получим список стен
+
+////БЫСТРЫЕ ФИЛЬТРЫ
+//var res3 = new FilteredElementCollector(doc) //находим все стены в проекте через фильтр
+//   .WhereElementIsNotElementType()
+//   .ToList(); //список параметризированный базовым классом Element
+//              // на выходе получим список стен
+
+
+
+
+
+//return Result.Succeeded;
+
+//}
 //}
 
 //Чтобы искать по типу используется фильтр OfClass этот метод расширения относиться именно к Revit
@@ -246,3 +327,4 @@ namespace CreationModelPluginLab4
 // Чтобы отделять типы от экземпляров (напр. Wall от WallType) можно делать фильтр на основе типа OfClass(typeof(FamilyInstance))
 //В Revit измерение в фут.
 //Свойство LOCATION есть у многих элементов являться может либо точкой либо кривой.
+//footprint.Append(curve.Curve);//добавляем кривую в footprint при помощи метода Append
